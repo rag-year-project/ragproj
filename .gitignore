@@ -1,0 +1,11 @@
+bucket/
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+mlruns/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.pdf
+.env
