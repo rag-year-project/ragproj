@@ -1,4 +1,6 @@
 bucket/
+data/corpus_pages_images
+data/pdf_manuals
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
@@ -8,4 +10,8 @@ mlruns/
 __pycache__/
 .ipynb_checkpoints/
 *.pdf
+*.png
 .env
+test/
+.venv/
+.vscode/

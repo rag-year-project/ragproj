@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocVQA Grounding Labeler — Чекпоинт 2</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        #drawCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; touch-action: none; }
+        #pageImg { display: block; max-width: 100%; height: auto; pointer-events: none; user-select: none; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col lg:flex-row overflow-x-hidden">
+
+    <!-- Уведомление (Toast вместо alert) -->
+    <div id="toast" class="fixed top-4 right-4 z-50 hidden px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-200"></div>
+
+    <!-- Боковая панель формы разметки -->
+    <aside class="w-full lg:w-[440px] bg-white border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col shrink-0 lg:h-screen">
+        <div class="px-5 py-4 bg-blue-900 text-white">
+            <h1 class="text-base font-semibold tracking-tight">DocVQA Grounding Tool</h1>
+            <p class="text-xs text-blue-200 mt-0.5">Разметка 100+ вопросов с Bounding Box (Чекпоинт 2)</p>
+        </div>
+
+        <div class="p-5 overflow-y-auto flex-1 space-y-3.5">
+            <!-- Загрузка изображения страницы -->
+            <div>
+                <label for="fileInput" class="block text-xs font-semibold text-slate-600 mb-1">1. Изображение страницы мануала (PNG/JPG):</label>
+                <input type="file" id="fileInput" accept="image/*" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-md p-1">
+                <p class="text-[11px] text-slate-500 mt-1">Выберите страницу из папки <code class="bg-slate-100 px-1 rounded">corpus_pages_images/</code></p>
+            </div>
+
+            <!-- Doc ID и Страница -->
+            <div class="grid grid-cols-3 gap-2.5">
+                <div class="col-span-2">
+                    <label for="docId" class="block text-xs font-semibold text-slate-600 mb-1">Doc ID и модель:</label>
+                    <input type="text" id="docId" placeholder="MAN-001_Baxi_800_Combi" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:border-blue-600 focus:outline-none">
+                </div>
+                <div>
+                    <label for="pageNum" class="block text-xs font-semibold text-slate-600 mb-1">Страница:</label>
+                    <input type="number" id="pageNum" value="1" min="1" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:border-blue-600 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Тип вопроса -->
+            <div>
+                <label for="qType" class="block text-xs font-semibold text-slate-600 mb-1">Тип вопроса (Challenge Type):</label>
+                <select id="qType" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs bg-white focus:border-blue-600 focus:outline-none">
+                    <option value="text">Текстовый (Text Baseline — Easy)</option>
+                    <option value="table">Табличный (Table / Specification — Medium)</option>
+                    <option value="visual_schematic">Электрическая / гидро схема (Wiring Diagram — Hard)</option>
+                    <option value="exploded_view">Взрыв-схема / Механика (Exploded Assembly — Hard)</option>
+                    <option value="chart">График / Диаграмма кривых (Chart / Curve — Hard)</option>
+                </select>
+            </div>
+
+            <!-- Вопрос -->
+            <div>
+                <label for="questionText" class="block text-xs font-semibold text-slate-600 mb-1">Вопрос (Question):</label>
+                <textarea id="questionText" rows="2" placeholder="Например: К каким клеммам колодки M1 подключается комнатный термостат?" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:border-blue-600 focus:outline-none"></textarea>
+            </div>
+
+            <!-- Эталонный ответ -->
+            <div>
+                <label for="answerText" class="block text-xs font-semibold text-slate-600 mb-1">Эталонный ответ (Ground Truth Answer):</label>
+                <textarea id="answerText" rows="2" placeholder="Например: Клеммы 1 и 2 колодки M1 (при этом необходимо удалить перемычку)." class="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:border-blue-600 focus:outline-none"></textarea>
+            </div>
+
+            <!-- Координаты Bounding Box -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Bounding Box [ymin, xmin, ymax, xmax] (px):</label>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <input type="text" id="bYmin" placeholder="ymin" readonly class="text-center bg-slate-100 border border-slate-300 rounded-md py-1 text-xs font-semibold text-slate-700">
+                    <input type="text" id="bXmin" placeholder="xmin" readonly class="text-center bg-slate-100 border border-slate-300 rounded-md py-1 text-xs font-semibold text-slate-700">
+                    <input type="text" id="bYmax" placeholder="ymax" readonly class="text-center bg-slate-100 border border-slate-300 rounded-md py-1 text-xs font-semibold text-slate-700">
+                    <input type="text" id="bXmax" placeholder="xmax" readonly class="text-center bg-slate-100 border border-slate-300 rounded-md py-1 text-xs font-semibold text-slate-700">
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Выделите мышью область ответа на изображении справа.</p>
+            </div>
+
+            <!-- Кнопки действий -->
+            <div class="flex gap-2 pt-1">
+                <button type="button" id="addBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-md text-xs transition">+ Добавить вопрос</button>
+                <button type="button" id="resetBoxBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold py-2 px-3 rounded-md text-xs transition">Сбросить Box</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <button type="button" id="exportBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-3 rounded-md text-xs transition">Экспорт JSON</button>
+                <button type="button" id="copyJsonBtn" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-3 rounded-md text-xs transition">Копировать JSON</button>
+            </div>
+
+            <!-- Импорт существующего JSON -->
+            <div class="pt-2 border-t border-slate-200">
+                <label for="importJsonInput" class="block text-[11px] font-semibold text-slate-500 mb-1">Подгрузить ранее сохраненный benchmark_qa.json:</label>
+                <input type="file" id="importJsonInput" accept=".json,application/json" class="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-[11px] file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+            </div>
+
+            <!-- Список добавленных вопросов -->
+            <div class="pt-3 border-t border-slate-200">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-semibold text-slate-700">Размеченные вопросы (<span id="qaCount">0</span>)</h2>
+                    <button type="button" id="clearAllBtn" class="text-[11px] text-rose-600 hover:underline">Очистить список</button>
+                </div>
+                <div id="qaItemsList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Область просмотра и выделения Bounding Box -->
+    <main class="flex-1 flex flex-col bg-slate-700 lg:h-screen overflow-hidden">
+        <div class="h-11 bg-slate-800 px-4 flex items-center justify-between text-xs text-slate-200 shrink-0">
+            <span id="imgInfo" class="font-medium truncate">Загрузите PNG страницы или используйте демо-шаблон схемы</span>
+            <button type="button" id="loadDemoBtn" class="bg-slate-700 hover:bg-slate-600 text-slate-100 px-2.5 py-1 rounded text-[11px] font-medium transition shrink-0 ml-2">Загрузить демо-схему</button>
+        </div>
+
+        <div class="flex-1 overflow-auto p-4 flex justify-center items-start">
+            <div id="canvasContainer" class="relative bg-white shadow-2xl rounded overflow-hidden">
+                <img id="pageImg" alt="Страница мануала">
+                <canvas id="drawCanvas"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentBBox = null;
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+        let qaDataset = [];
+
+        const fileInput = document.getElementById('fileInput');
+        const importJsonInput = document.getElementById('importJsonInput');
+        const pageImg = document.getElementById('pageImg');
+        const drawCanvas = document.getElementById('drawCanvas');
+        const ctx = drawCanvas.getContext('2d');
+        const imgInfo = document.getElementById('imgInfo');
+        const toast = document.getElementById('toast');
+
+        function showToast(message, isError = false) {
+            toast.textContent = message;
+            toast.className = `fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg shadow-lg text-xs font-semibold transition-all duration-200 ${
+                isError ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+            }`;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Генерация встроенной демо-схемы на случай теста без локального файла
+        function loadDemoSchematic() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 760;
+            tempCanvas.height = 520;
+            const tctx = tempCanvas.getContext('2d');
+
+            tctx.fillStyle = '#ffffff';
+            tctx.fillRect(0, 0, 760, 520);
+
+            tctx.strokeStyle = '#1e3a8a';
+            tctx.lineWidth = 2;
+            tctx.strokeRect(20, 20, 720, 480);
+
+            tctx.fillStyle = '#1e3a8a';
+            tctx.font = 'bold 16px Inter, sans-serif';
+            tctx.fillText('BAXI LUNA 3 / 800 COMBI — MAIN PCB WIRING & TERMINAL BLOCK M1', 40, 55);
+
+            // Рисуем клеммную колодку M1
+            tctx.fillStyle = '#f1f5f9';
+            tctx.fillRect(50, 90, 300, 170);
+            tctx.strokeStyle = '#334155';
+            tctx.strokeRect(50, 90, 300, 170);
+
+            tctx.fillStyle = '#0f172a';
+            tctx.font = 'bold 13px Inter, sans-serif';
+            tctx.fillText('Terminal Block M1 (230V AC):', 65, 115);
+            tctx.font = '12px Inter, sans-serif';
+            tctx.fillText('Pin 1 & Pin 2: Room Thermostat (Remove Link)', 65, 145);
+            tctx.fillText('Pin 3: Live Supply (L) — Fuse 2A F1', 65, 175);
+            tctx.fillText('Pin 4: Neutral Supply (N)', 65, 205);
+            tctx.fillText('Pin 5: Earth Ground (PE)', 65, 235);
+
+            // Рисуем колодку M2 (низковольтная)
+            tctx.fillStyle = '#eff6ff';
+            tctx.fillRect(390, 90, 320, 170);
+            tctx.strokeStyle = '#1d4ed8';
+            tctx.strokeRect(390, 90, 320, 170);
+
+            tctx.fillStyle = '#1e3a8a';
+            tctx.font = 'bold 13px Inter, sans-serif';
+            tctx.fillText('Connector CN4 / M2 (Low Voltage 24V):', 405, 115);
+            tctx.font = '12px Inter, sans-serif';
+            tctx.fillText('Pin 1-2: OpenTherm Bus Controller', 405, 145);
+            tctx.fillText('Pin 3-4: Outdoor NTC Sensor (B10)', 405, 175);
+            tctx.fillText('Pin 5-6: DHW Cylinder NTC (10 kOhm @ 25C)', 405, 205);
+
+            // Таблица кодов ошибок внизу
+            tctx.fillStyle = '#1e293b';
+            tctx.font = 'bold 13px Inter, sans-serif';
+            tctx.fillText('Fault Codes Summary Table:', 50, 300);
+
+            const rows = [
+                ['Code', 'Fault Description', 'Check Component & Pinout'],
+                ['E01', 'Ignition lockout (No flame)', 'Check gas valve & ignition electrode gap (3.5 mm)'],
+                ['E02', 'Safety thermostat overheat (>95°C)', 'Check pump impeller & sensor on CN3 Pin 1-2'],
+                ['E05', 'Heating flow NTC sensor fault', 'Check resistance: 10.0 kOhm at 25°C (CN3 Pin 3-4)']
+            ];
+            rows.forEach((r, idx) => {
+                const y = 315 + idx * 36;
+                tctx.fillStyle = idx === 0 ? '#dbeafe' : (idx % 2 === 1 ? '#f8fafc' : '#ffffff');
+                tctx.fillRect(50, y, 660, 36);
+                tctx.strokeStyle = '#cbd5e1';
+                tctx.strokeRect(50, y, 660, 36);
+                tctx.fillStyle = '#0f172a';
+                tctx.font = idx === 0 ? 'bold 12px Inter, sans-serif' : '12px Inter, sans-serif';
+                tctx.fillText(r[0], 65, y + 22);
+                tctx.fillText(r[1], 140, y + 22);
+                tctx.fillText(r[2], 400, y + 22);
+            });
+
+            pageImg.src = tempCanvas.toDataURL('image/png');
+            pageImg.onload = () => {
+                drawCanvas.width = pageImg.naturalWidth;
+                drawCanvas.height = pageImg.naturalHeight;
+                imgInfo.textContent = `DEMO_page_024.png (${pageImg.naturalWidth} x ${pageImg.naturalHeight} px)`;
+                document.getElementById('docId').value = 'MAN-001_Baxi_800_Combi_2';
+                document.getElementById('pageNum').value = 24;
+                redraw();
+            };
+        }
+
+        document.getElementById('loadDemoBtn').addEventListener('click', () => {
+            loadDemoSchematic();
+            showToast('Демо-схема загружена! Выделите область мышью.');
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                pageImg.src = event.target.result;
+                pageImg.onload = () => {
+                    drawCanvas.width = pageImg.naturalWidth;
+                    drawCanvas.height = pageImg.naturalHeight;
+                    imgInfo.textContent = `${file.name} (${pageImg.naturalWidth} x ${pageImg.naturalHeight} px)`;
+
+                    const match = file.name.match(/page_(\d+)/i);
+                    if (match) {
+                        document.getElementById('pageNum').value = parseInt(match[1], 10);
+                    }
+                    currentBBox = null;
+                    updateBBoxFields();
+                    redraw();
+                    showToast(`Страница ${file.name} загружена`);
+                };
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function getCanvasCoords(e) {
+            const rect = drawCanvas.getBoundingClientRect();
+            const scaleX = drawCanvas.width / rect.width;
+            const scaleY = drawCanvas.height / rect.height;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        drawCanvas.addEventListener('mousedown', (e) => {
+            if (!drawCanvas.width) return;
+            const pos = getCanvasCoords(e);
+            startX = pos.x;
+            startY = pos.y;
+            isDrawing = true;
+        });
+
+        drawCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const pos = getCanvasCoords(e);
+            const xmin = Math.max(0, Math.round(Math.min(startX, pos.x)));
+            const ymin = Math.max(0, Math.round(Math.min(startY, pos.y)));
+            const xmax = Math.min(drawCanvas.width, Math.round(Math.max(startX, pos.x)));
+            const ymax = Math.min(drawCanvas.height, Math.round(Math.max(startY, pos.y)));
+
+            currentBBox = [ymin, xmin, ymax, xmax];
+            updateBBoxFields();
+            redraw();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        function updateBBoxFields() {
+            if (currentBBox) {
+                document.getElementById('bYmin').value = currentBBox[0];
+                document.getElementById('bXmin').value = currentBBox[1];
+                document.getElementById('bYmax').value = currentBBox[2];
+                document.getElementById('bXmax').value = currentBBox[3];
+            } else {
+                document.getElementById('bYmin').value = '';
+                document.getElementById('bXmin').value = '';
+                document.getElementById('bYmax').value = '';
+                document.getElementById('bXmax').value = '';
+            }
+        }
+
+        function redraw() {
+            ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            if (currentBBox) {
+                const [ymin, xmin, ymax, xmax] = currentBBox;
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(xmin, ymin, xmax - xmin, ymax - ymin);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
+                ctx.fillRect(xmin, ymin, xmax - xmin, ymax - ymin);
+            }
+        }
+
+        document.getElementById('resetBoxBtn').addEventListener('click', () => {
+            currentBBox = null;
+            updateBBoxFields();
+            redraw();
+        });
+
+        document.getElementById('addBtn').addEventListener('click', () => {
+            const docId = document.getElementById('docId').value.trim() || 'MAN-DEFAULT';
+            const pageNum = parseInt(document.getElementById('pageNum').value, 10) || 1;
+            const qType = document.getElementById('qType').value;
+            const question = document.getElementById('questionText').value.trim();
+            const answer = document.getElementById('answerText').value.trim();
+
+            if (!question || !answer) {
+                showToast('Заполните текст вопроса и эталонный ответ!', true);
+                return;
+            }
+
+            const item = {
+                question_id: `Q-${String(qaDataset.length + 1).padStart(3, '0')}`,
+                doc_id: docId,
+                target_page: pageNum,
+                question_type: qType,
+                question: question,
+                ground_truth_answer: answer,
+                bounding_box: currentBBox || [],
+                page_dimensions: [drawCanvas.height || 0, drawCanvas.width || 0]
+            };
+
+            qaDataset.push(item);
+            saveToStorage();
+            updateListUI();
+
+            document.getElementById('questionText').value = '';
+            document.getElementById('answerText').value = '';
+            currentBBox = null;
+            updateBBoxFields();
+            redraw();
+            showToast(`Добавлен вопрос ${item.question_id}`);
+        });
+
+        function removeQuestion(qId) {
+            qaDataset = qaDataset.filter(item => item.question_id !== qId);
+            qaDataset.forEach((item, index) => {
+                item.question_id = `Q-${String(index + 1).padStart(3, '0')}`;
+            });
+            saveToStorage();
+            updateListUI();
+            showToast('Вопрос удален');
+        }
+
+        function updateListUI() {
+            document.getElementById('qaCount').textContent = qaDataset.length;
+            const container = document.getElementById('qaItemsList');
+            container.innerHTML = '';
+
+            qaDataset.slice().reverse().forEach((q) => {
+                const div = document.createElement('div');
+                div.className = 'p-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs relative';
+
+                const header = document.createElement('div');
+                header.className = 'flex items-center justify-between font-semibold text-blue-900';
+                header.innerHTML = `<span>${q.question_id} · ${q.doc_id} (стр. ${q.target_page})</span>`;
+
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'text-rose-500 hover:text-rose-700 font-bold px-1';
+                delBtn.textContent = '×';
+                delBtn.addEventListener('click', () => removeQuestion(q.question_id));
+                header.appendChild(delBtn);
+
+                const bodyQ = document.createElement('div');
+                bodyQ.className = 'mt-1 text-slate-700';
+                bodyQ.textContent = `В: ${q.question}`;
+
+                const bodyA = document.createElement('div');
+                bodyA.className = 'mt-0.5 text-emerald-700 font-medium';
+                bodyA.textContent = `О: ${q.ground_truth_answer}`;
+
+                const meta = document.createElement('div');
+                meta.className = 'mt-1 text-[10px] text-slate-500';
+                meta.textContent = `Тип: ${q.question_type} | BBox: [${(q.bounding_box || []).join(', ')}]`;
+
+                div.appendChild(header);
+                div.appendChild(bodyQ);
+                div.appendChild(bodyA);
+                div.appendChild(meta);
+                container.appendChild(div);
+            });
+        }
+
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (qaDataset.length === 0) {
+                showToast('Список вопросов пуст! Добавьте хотя бы один вопрос.', true);
+                return;
+            }
+            const blob = new Blob([JSON.stringify(qaDataset, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'benchmark_qa.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Файл benchmark_qa.json скачан!');
+        });
+
+        document.getElementById('copyJsonBtn').addEventListener('click', () => {
+            if (qaDataset.length === 0) {
+                showToast('Список вопросов пуст!', true);
+                return;
+            }
+            const jsonStr = JSON.stringify(qaDataset, null, 2);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(jsonStr).then(() => {
+                    showToast('JSON скопирован в буфер обмена!');
+                }).catch(() => fallbackCopy(jsonStr));
+            } else {
+                fallbackCopy(jsonStr);
+            }
+        });
+
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('JSON скопирован в буфер обмена!');
+        }
+
+        importJsonInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    if (Array.isArray(parsed)) {
+                        qaDataset = parsed;
+                        saveToStorage();
+                        updateListUI();
+                        showToast(`Загружено вопросов: ${qaDataset.length}`);
+                    } else {
+                        showToast('Некорректный формат JSON (ожидается список)', true);
+                    }
+                } catch (err) {
+                    showToast('Ошибка чтения JSON файла', true);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+            qaDataset = [];
+            saveToStorage();
+            updateListUI();
+            showToast('Список очищен');
+        });
+
+        function saveToStorage() {
+            try {
+                localStorage.setItem('docvqa_benchmark_qa', JSON.stringify(qaDataset));
+            } catch (e) {}
+        }
+
+        function loadFromStorage() {
+            try {
+                const saved = localStorage.getItem('docvqa_benchmark_qa');
+                if (saved) {
+                    qaDataset = JSON.parse(saved);
+                    updateListUI();
+                }
+            } catch (e) {}
+        }
+
+        window.onload = () => {
+            loadFromStorage();
+            loadDemoSchematic();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+[project]
+name = "yearproj"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "miradimo", email = "nistratov7@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "rank-bm25>=0.2.2",
+]
+
+[project.scripts]
+yearproj = "yearproj:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
