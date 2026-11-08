@@ -1,0 +1,5 @@
+# Keep fingerprinted EDA metadata reproducible on Windows and Unix.
+data/meta/drive_corpus.json text eol=lf
+data/meta/benchmark_qa.csv text eol=lf
+data/meta/document_review.csv text eol=lf
+src/yearproj/eda.py text eol=lf

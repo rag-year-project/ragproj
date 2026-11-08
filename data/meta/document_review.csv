@@ -1,0 +1,2 @@
+doc_id,decision,reason,evidence_pages,file_sha256
+MAN-19_De'Longhi_Magnifica_S_(ECAM_22.110),exclude,Вместо инструкции рекламная веб-страница с предложением открыть обзор; вторая страница содержит только метки image. Нужна замена настоящим руководством.,1;2,c51e29373f66cc20e92a3e2106e72aa1c9c1a8bcc63e4b5954a78e30ff82d96c
