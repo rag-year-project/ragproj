@@ -15,9 +15,3 @@ __pycache__/
 test/
 .venv/
 .vscode/
-.uv-cache/
-.tmp/
-reports/eda/previews/
-reports/eda/pages_text.jsonl
-!reports/eda/overview.png
-!reports/eda/contact_sheet.png
