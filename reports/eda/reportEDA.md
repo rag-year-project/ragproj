@@ -152,8 +152,7 @@
 
 ## 5. Данные и методика
 
-- [Реестр инструкций (Google Sheets)](https://docs.google.com/spreadsheets/d/1f2HkJeWjz4jDuKwngFnSle41falRVxVjxTE8xhjaHYE/edit) – метаданные, категории, модели и результаты сверки документов.
-- [Банк вопросов (Google Sheets)](https://docs.google.com/spreadsheets/d/1_j7oWTQGm9XBNkeFyd4L67_mA_tow7KE67nE0IsV1wA/edit) – формулировки, источники, эталонные ответы и привязки к руководствам.
-- [Полная версия EDA (Google Docs)](https://docs.google.com/document/d/1eHSE9a3qsbgTl_w8lufTnGSJUmajbBfG4FGfDq1cbIg/edit) – исходный отчёт с графиками.
+- [Реестр инструкций (Google Sheets)](https://docs.google.com/spreadsheets/d/1ZSCY4HXYSRicQFO-C3LYbOIonxA2SJaYr31nc3tC8NI/edit?usp=sharing) – метаданные, категории, модели и результаты сверки документов.
+- [Банк вопросов (Google Sheets)](https://docs.google.com/spreadsheets/d/1YHAcWplGC7dc0WVK7p8tAW6Sj6qrYbBEa63lUxyu-HY/edit?usp=sharing) – формулировки, источники, эталонные ответы и привязки к руководствам.
 
 **Как считались показатели.** Категории страниц и языки определялись автоматически при разборе PDF; распределение тематик вопросов – первичная содержательная классификация формулировок. Тип материала ответа восстановлен из разметки банка вопросов. Статистика относится к состоянию корпуса на ноябрь 2026 года и будет уточняться при подготовке финального benchmark.
